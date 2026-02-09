@@ -2,36 +2,48 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../hooks/useAuth";
-import { BiPlusCircle, BiListUl, BiCheckCircle, BiTimeFive } from "react-icons/bi";
+import { BiPlusCircle, BiListUl, BiCheckCircle, BiTimeFive, BiUser, BiBuilding, BiPackage } from "react-icons/bi";
 
 export default function Dashboard() {
   const nav = useNavigate();
-  const { profile, isAdmin, isViewer } = useAuth();
+  const { profile, isAdmin, isViewer, user } = useAuth();
   const [stats, setStats] = useState({ total: 0, completadas: 0, borradores: 0, revisadas: 0 });
   const [recientes, setRecientes] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Métricas adicionales para admin
+  const [adminStats, setAdminStats] = useState({
+    supervisionesPorMedico: [],
+    establecimientosMasVisitados: [],
+    establecimientosSinInsumos: 0
+  });
 
   useEffect(() => {
     const fetchData = async () => {
+      // Filtrar por auditor_id si no es admin
+      const baseQuery = (query) => {
+        if (!isAdmin && user?.id) {
+          return query.eq("auditor_id", user.id);
+        }
+        return query;
+      };
+
       // Stats
-      const { count: total } = await supabase
-        .from("supervisiones")
-        .select("id", { count: "exact", head: true });
+      let totalQuery = supabase.from("supervisiones").select("id", { count: "exact", head: true });
+      totalQuery = baseQuery(totalQuery);
+      const { count: total } = await totalQuery;
 
-      const { count: completadas } = await supabase
-        .from("supervisiones")
-        .select("id", { count: "exact", head: true })
-        .eq("estado", "completado");
+      let completadasQuery = supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "completado");
+      completadasQuery = baseQuery(completadasQuery);
+      const { count: completadas } = await completadasQuery;
 
-      const { count: borradores } = await supabase
-        .from("supervisiones")
-        .select("id", { count: "exact", head: true })
-        .eq("estado", "borrador");
+      let borradoresQuery = supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "borrador");
+      borradoresQuery = baseQuery(borradoresQuery);
+      const { count: borradores } = await borradoresQuery;
 
-      const { count: revisadas } = await supabase
-        .from("supervisiones")
-        .select("id", { count: "exact", head: true })
-        .eq("estado", "revisado");
+      let revisadasQuery = supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "revisado");
+      revisadasQuery = baseQuery(revisadasQuery);
+      const { count: revisadas } = await revisadasQuery;
 
       setStats({
         total: total || 0,
@@ -41,18 +53,69 @@ export default function Dashboard() {
       });
 
       // Ultimas 5 supervisiones
-      const { data } = await supabase
+      let recientesQuery = supabase
         .from("supervisiones")
         .select("id, correlativo, fecha, estado, ris:ris_id(nombre), establecimiento:establecimiento_id(nombre)")
         .order("fecha", { ascending: false })
         .limit(5);
+      recientesQuery = baseQuery(recientesQuery);
+      const { data } = await recientesQuery;
 
       setRecientes(data || []);
+
+      // Métricas adicionales para admin
+      if (isAdmin) {
+        // 1. Supervisiones por médico jefe
+        const { data: porMedico } = await supabase
+          .from("supervisiones")
+          .select("medico_jefe")
+          .not("medico_jefe", "is", null);
+        
+        const medicoCounts = {};
+        (porMedico || []).forEach(s => {
+          const medico = s.medico_jefe || "Sin médico";
+          medicoCounts[medico] = (medicoCounts[medico] || 0) + 1;
+        });
+        
+        const topMedicos = Object.entries(medicoCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([nombre, cantidad]) => ({ nombre, cantidad }));
+
+        // 2. Establecimientos más visitados
+        const { data: supervisiones } = await supabase
+          .from("supervisiones")
+          .select("establecimiento_id, establecimiento:establecimiento_id(nombre)");
+        
+        const eessCounts = {};
+        (supervisiones || []).forEach(s => {
+          const nombre = s.establecimiento?.nombre || "Sin establecimiento";
+          eessCounts[nombre] = (eessCounts[nombre] || 0) + 1;
+        });
+        
+        const topEess = Object.entries(eessCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([nombre, cantidad]) => ({ nombre, cantidad }));
+
+        // 3. Establecimientos sin registro de insumos (buscar "desabastecido" en observaciones)
+        const { data: conProblemas } = await supabase
+          .from("supervisiones")
+          .select("observaciones")
+          .or("observaciones.ilike.%desabastecido%,observaciones.ilike.%sin insumos%,observaciones.ilike.%falta%");
+        
+        setAdminStats({
+          supervisionesPorMedico: topMedicos,
+          establecimientosMasVisitados: topEess,
+          establecimientosSinInsumos: conProblemas?.length || 0
+        });
+      }
+
       setLoading(false);
     };
 
     fetchData();
-  }, []);
+  }, [isAdmin, user?.id]);
 
   const estadoBadge = (estado) => {
     const map = {
@@ -192,6 +255,84 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Métricas adicionales para Admin */}
+      {isAdmin && (
+        <div className="row g-3 mt-3">
+          {/* Supervisiones por Médico */}
+          <div className="col-lg-6">
+            <div className="card border-0 shadow-sm">
+              <div className="card-header bg-white d-flex align-items-center gap-2">
+                <BiUser size={20} className="text-primary" />
+                <h6 className="mb-0">Top 5 Médicos Jefes Supervisados</h6>
+              </div>
+              <div className="card-body">
+                {loading ? (
+                  <div className="text-center text-muted py-3">Cargando...</div>
+                ) : adminStats.supervisionesPorMedico.length === 0 ? (
+                  <div className="text-center text-muted py-3">Sin datos</div>
+                ) : (
+                  <div className="list-group list-group-flush">
+                    {adminStats.supervisionesPorMedico.map((m, idx) => (
+                      <div key={idx} className="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span style={{ fontSize: "0.9rem" }}>{m.nombre}</span>
+                        <span className="badge bg-primary rounded-pill">{m.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Establecimientos más visitados */}
+          <div className="col-lg-6">
+            <div className="card border-0 shadow-sm">
+              <div className="card-header bg-white d-flex align-items-center gap-2">
+                <BiBuilding size={20} className="text-success" />
+                <h6 className="mb-0">Top 5 Establecimientos Supervisados</h6>
+              </div>
+              <div className="card-body">
+                {loading ? (
+                  <div className="text-center text-muted py-3">Cargando...</div>
+                ) : adminStats.establecimientosMasVisitados.length === 0 ? (
+                  <div className="text-center text-muted py-3">Sin datos</div>
+                ) : (
+                  <div className="list-group list-group-flush">
+                    {adminStats.establecimientosMasVisitados.map((e, idx) => (
+                      <div key={idx} className="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span style={{ fontSize: "0.9rem" }}>{e.nombre}</span>
+                        <span className="badge bg-success rounded-pill">{e.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Alerta de establecimientos con problemas de insumos */}
+          <div className="col-12">
+            <div className="card border-0 shadow-sm" style={{ borderLeft: "4px solid #dc3545" }}>
+              <div className="card-body d-flex align-items-center gap-3">
+                <div className="rounded-3 p-2" style={{ background: "#fee" }}>
+                  <BiPackage size={28} color="#dc3545" />
+                </div>
+                <div className="flex-grow-1">
+                  <h6 className="mb-1">Establecimientos con Problemas de Insumos</h6>
+                  <p className="text-muted mb-0" style={{ fontSize: "0.85rem" }}>
+                    Supervisiones con registro de desabastecimiento o falta de insumos
+                  </p>
+                </div>
+                <div className="text-end">
+                  <h3 className="mb-0 text-danger">{adminStats.establecimientosSinInsumos}</h3>
+                  <small className="text-muted">registros</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

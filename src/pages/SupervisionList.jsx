@@ -98,6 +98,32 @@ export default function SupervisionList() {
     fetchData();
   };
 
+  const eliminarSupervision = async (id) => {
+    if (!window.confirm("¿Está seguro de eliminar esta supervisión? Esta acción no se puede deshacer.")) {
+      return;
+    }
+
+    try {
+      // 1. Eliminar respuestas asociadas
+      await supabase.from("respuestas").delete().eq("supervision_id", id);
+      
+      // 2. Eliminar evidencias asociadas (registros en tabla, archivos en storage se pueden borrar después)
+      await supabase.from("evidencias").delete().eq("supervision_id", id);
+      
+      // 3. Eliminar la supervisión
+      const { error } = await supabase.from("supervisiones").delete().eq("id", id);
+      
+      if (error) {
+        alert("Error al eliminar: " + error.message);
+      } else {
+        alert("Supervisión eliminada correctamente");
+        fetchData();
+      }
+    } catch (err) {
+      alert("Error al eliminar: " + err.message);
+    }
+  };
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -219,6 +245,15 @@ export default function SupervisionList() {
                               onClick={() => marcarRevisado(s.id)}
                             >
                               Revisar
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => eliminarSupervision(s.id)}
+                              title="Eliminar supervisión"
+                            >
+                              Eliminar
                             </button>
                           )}
                         </div>
