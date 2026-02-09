@@ -42,8 +42,11 @@ export default function Sidebar({ open, onClose }) {
 
       <aside className={`app-sidebar ${open ? "open" : ""}`}>
         <div className="sidebar-header">
-          <h5>SPVS Auditores</h5>
-          <small>Sistema de Supervision</small>
+          <img src="/logo.svg" alt="V.I.S.O.R Logo" className="sidebar-logo" width="40" height="40" style={{ marginRight: "10px" }} />
+          <div>
+            <h5>SPVS Auditores</h5>
+            <small>Sistema de Supervision</small>
+          </div>
         </div>
 
         <nav className="sidebar-nav">

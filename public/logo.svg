@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Define gradients -->
+  <defs>
+    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0052cc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#003d99;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="url(#blueGradient)"/>
+  
+  <!-- Eye symbol (Vigilancia) - Left side -->
+  <g transform="translate(50, 85)">
+    <!-- Eye outline -->
+    <ellipse cx="0" cy="0" rx="20" ry="25" fill="none" stroke="white" stroke-width="2.5"/>
+    <!-- Iris -->
+    <circle cx="0" cy="0" r="12" fill="white" opacity="0.9"/>
+    <!-- Pupil -->
+    <circle cx="0" cy="2" r="6" fill="#0052cc"/>
+    <!-- Light reflection -->
+    <circle cx="-2" cy="-1" r="2.5" fill="white" opacity="0.7"/>
+  </g>
+  
+  <!-- Checkmark symbol (Auditoría) - Right side -->
+  <g transform="translate(130, 95)">
+    <!-- Checkmark in circle background -->
+    <circle cx="0" cy="0" r="18" fill="white" opacity="0.15"/>
+    <!-- Checkmark path -->
+    <path d="M -8 0 L -1 7 L 12 -8" 
+          fill="none" 
+          stroke="white" 
+          stroke-width="3.5" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Center accent line (Supervisión connection) -->
+  <line x1="70" y1="100" x2="110" y2="100" 
+        stroke="white" 
+        stroke-width="2" 
+        opacity="0.6"/>
+  
+  <!-- V.I.S.O.R text at bottom -->
+  <text x="100" y="170" 
+        font-family="Arial, sans-serif" 
+        font-size="14" 
+        font-weight="bold" 
+        text-anchor="middle" 
+        fill="white" 
+        opacity="0.95">
+    V.I.S.O.R
+  </text>
+</svg>

@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./public/logo.svg" alt="V.I.S.O.R Logo" width="150" height="150" />
+</div>
+
 # V.I.S.O.R
 
 ## Vigilancia, Inspección y Supervisión de Operatividad y Registros
