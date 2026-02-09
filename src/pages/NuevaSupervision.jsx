@@ -8,7 +8,15 @@ export default function NuevaSupervision() {
   const [eess, setEess] = useState([]);
   const [risId, setRisId] = useState("");
   const [eessId, setEessId] = useState("");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  // Usar fecha local sin conversión de zona horaria
+  const getLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const [fecha, setFecha] = useState(getLocalDate());
   const [err, setErr] = useState("");
 
   useEffect(() => {

@@ -42,7 +42,7 @@ export default function SupervisionList() {
     let query = supabase
       .from("supervisiones")
       .select(
-        "id, correlativo, fecha, estado, medico_jefe, ris:ris_id(nombre), establecimiento:establecimiento_id(nombre)",
+        "id, correlativo, fecha, hora_inicio, hora_fin, estado, medico_jefe, ris:ris_id(nombre), establecimiento:establecimiento_id(nombre)",
         { count: "exact" }
       )
       .order("fecha", { ascending: false })
@@ -205,6 +205,8 @@ export default function SupervisionList() {
                   <tr>
                     <th>N</th>
                     <th>Fecha</th>
+                    <th>Hora Inicio</th>
+                    <th>Hora Fin</th>
                     <th>RIS</th>
                     <th>Establecimiento</th>
                     <th>Medico Jefe</th>
@@ -216,7 +218,9 @@ export default function SupervisionList() {
                   {data.map((s) => (
                     <tr key={s.id}>
                       <td>{s.correlativo ?? "—"}</td>
-                      <td>{s.fecha ? new Date(s.fecha).toLocaleDateString() : "—"}</td>
+                      <td>{s.fecha ? new Date(s.fecha + "T00:00:00").toLocaleDateString() : "—"}</td>
+                      <td>{s.hora_inicio ? new Date(s.hora_inicio).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                      <td>{s.hora_fin ? new Date(s.hora_fin).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                       <td>{s.ris?.nombre || "—"}</td>
                       <td>{s.establecimiento?.nombre || "—"}</td>
                       <td>{s.medico_jefe || "—"}</td>
