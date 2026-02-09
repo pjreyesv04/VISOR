@@ -91,7 +91,9 @@ export default function SupervisionForm() {
   // Formatear fecha ISO a formato local DD/MM/YYYY evitando desfases de zona horaria
   const formatFechaISO = (isoString) => {
     if (!isoString) return "";
-    const date = new Date(isoString);
+    // Extraer solo la parte de fecha YYYY-MM-DD y forzar hora local
+    const fechaSolo = isoString.split('T')[0];
+    const date = new Date(fechaSolo + 'T00:00:00');
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
