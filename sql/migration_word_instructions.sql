@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS participantes_capacitacion (
 CREATE INDEX IF NOT EXISTS idx_part_cap_supervision ON participantes_capacitacion(supervision_id);
 
 -- =========================================================
--- 2) TABLA: fua_verificados (Sección 6 - tabla 10 filas FUA)
+-- 2) TABLA: fua_verificados (Sección 5.3 Teleinterconsulta)
+--    Columnas: ITEM, Numero FUA, Fecha Atención, Fecha Digitación,
+--              Código Prestacional, CPMS, Observación
 -- =========================================================
 CREATE TABLE IF NOT EXISTS fua_verificados (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,8 +30,9 @@ CREATE TABLE IF NOT EXISTS fua_verificados (
   fila_numero INTEGER NOT NULL DEFAULT 1,
   numero_fua TEXT DEFAULT '',
   fecha_atencion DATE DEFAULT NULL,
-  paciente TEXT DEFAULT '',
-  diagnostico TEXT DEFAULT '',
+  fecha_digitacion DATE DEFAULT NULL,
+  codigo_prestacional TEXT DEFAULT '',
+  cpms TEXT DEFAULT '',
   observacion TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now()
 );

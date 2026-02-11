@@ -22,7 +22,7 @@ async function dataURLToBlob(dataURL) {
 const GRUPOS_OCUPACIONALES = ["Médico", "Técnico", "Licenciado", "Tecnólogo"];
 
 const EMPTY_PARTICIPANTE = { apellidos_nombres: "", dni: "", grupo_ocupacional: "" };
-const EMPTY_FUA = { numero_fua: "", fecha_atencion: "", paciente: "", diagnostico: "", observacion: "" };
+const EMPTY_FUA = { numero_fua: "", fecha_atencion: "", fecha_digitacion: "", codigo_prestacional: "", cpms: "", observacion: "" };
 const EMPTY_VERIF = { numero_fua: "", numero_hc: "", coincide: null, observacion: "" };
 
 export default function SupervisionForm() {
@@ -325,7 +325,7 @@ export default function SupervisionForm() {
         const fuaRows = Array.from({ length: 10 }, (_, i) => {
           const existing = fuaData.find((f) => f.fila_numero === i + 1);
           return existing
-            ? { id: existing.id, numero_fua: existing.numero_fua || "", fecha_atencion: existing.fecha_atencion || "", paciente: existing.paciente || "", diagnostico: existing.diagnostico || "", observacion: existing.observacion || "" }
+            ? { id: existing.id, numero_fua: existing.numero_fua || "", fecha_atencion: existing.fecha_atencion || "", fecha_digitacion: existing.fecha_digitacion || "", codigo_prestacional: existing.codigo_prestacional || "", cpms: existing.cpms || "", observacion: existing.observacion || "" }
             : { ...EMPTY_FUA };
         });
         setFuaVerificados(fuaRows);
@@ -548,7 +548,7 @@ export default function SupervisionForm() {
       await supabase.from("fua_verificados").delete().eq("supervision_id", supervisionId);
       const fuaRows = fuaVerificados
         .map((f, i) => ({ ...f, fila_numero: i + 1 }))
-        .filter((f) => f.numero_fua.trim() || f.paciente.trim());
+        .filter((f) => f.numero_fua.trim() || f.codigo_prestacional.trim() || f.cpms.trim());
       if (fuaRows.length > 0) {
         const { error: fuaErr } = await supabase.from("fua_verificados").insert(
           fuaRows.map((f) => ({
@@ -556,8 +556,9 @@ export default function SupervisionForm() {
             fila_numero: f.fila_numero,
             numero_fua: f.numero_fua,
             fecha_atencion: f.fecha_atencion || null,
-            paciente: f.paciente,
-            diagnostico: f.diagnostico,
+            fecha_digitacion: f.fecha_digitacion || null,
+            codigo_prestacional: f.codigo_prestacional,
+            cpms: f.cpms,
             observacion: f.observacion,
           }))
         );
@@ -735,16 +736,17 @@ export default function SupervisionForm() {
   // =========================
   const renderTablaFuaVerificados = () => (
     <div className="mt-3 mb-3">
-      <label className="form-label fw-semibold text-primary">FUA Verificados (10 filas)</label>
+      <label className="form-label fw-semibold text-primary">Tabla de FUA Verificados (10 filas)</label>
       <div className="table-responsive">
         <table className="table table-bordered table-sm">
           <thead className="table-light">
             <tr>
-              <th style={{ width: 40 }}>#</th>
-              <th>N° FUA</th>
-              <th style={{ width: 140 }}>Fecha Atención</th>
-              <th>Paciente</th>
-              <th>Diagnóstico</th>
+              <th style={{ width: 40 }}>ITEM</th>
+              <th>Numero FUA</th>
+              <th style={{ width: 130 }}>Fecha Atención</th>
+              <th style={{ width: 130 }}>Fecha Digitación</th>
+              <th>Código Prestacional</th>
+              <th>CPMS</th>
               <th>Observación</th>
             </tr>
           </thead>
@@ -759,10 +761,13 @@ export default function SupervisionForm() {
                   <input type="date" className="form-control form-control-sm" value={f.fecha_atencion} onChange={(e) => updateFua(i, "fecha_atencion", e.target.value)} />
                 </td>
                 <td>
-                  <input className="form-control form-control-sm" value={f.paciente} onChange={(e) => updateFua(i, "paciente", e.target.value)} placeholder="Nombre paciente" />
+                  <input type="date" className="form-control form-control-sm" value={f.fecha_digitacion} onChange={(e) => updateFua(i, "fecha_digitacion", e.target.value)} />
                 </td>
                 <td>
-                  <input className="form-control form-control-sm" value={f.diagnostico} onChange={(e) => updateFua(i, "diagnostico", e.target.value)} placeholder="Diagnóstico" />
+                  <input className="form-control form-control-sm" value={f.codigo_prestacional} onChange={(e) => updateFua(i, "codigo_prestacional", e.target.value)} placeholder="Código" />
+                </td>
+                <td>
+                  <input className="form-control form-control-sm" value={f.cpms} onChange={(e) => updateFua(i, "cpms", e.target.value)} placeholder="CPMS" />
                 </td>
                 <td>
                   <input className="form-control form-control-sm" value={f.observacion} onChange={(e) => updateFua(i, "observacion", e.target.value)} placeholder="Obs." />

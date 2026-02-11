@@ -220,8 +220,20 @@ VALUES (
   NULL, NULL, NULL
 );
 
+-- 5.3: Tabla para registrar los FUA verificados (10 filas)
+INSERT INTO parametros (id, seccion, codigo, descripcion, requiere_observacion, orden, activo, tipo_campo_condicional, condicion_campo, etiqueta_campo_condicional, has_tabla_extra, depende_de_codigo, depende_valor)
+VALUES (
+  gen_random_uuid(),
+  '5. IP 06 Teleinterconsulta',
+  '5.3',
+  'Tabla para registrar los FUA verificados (10 Filas)',
+  true, 3, true,
+  NULL, NULL, NULL,
+  'fua_verificados', NULL, NULL
+);
+
 -- =========================================================
--- SECCIÓN 6: Power BI + Tabla FUA verificados (10 filas)
+-- SECCIÓN 6: Power BI
 -- =========================================================
 
 -- 6.1: Si o No = registrar nombre digitador + obs
@@ -233,7 +245,7 @@ VALUES (
   '¿Digitador corrige las Observaciones?',
   true, 1, true,
   'texto', 'siempre', 'Nombre del Digitador del Establecimiento',
-  'fua_verificados', NULL, NULL
+  NULL, NULL, NULL
 );
 
 -- 6.2: Si o No = registrar nombre digitador + obs
