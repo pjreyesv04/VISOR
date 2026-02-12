@@ -9,6 +9,7 @@ import {
   BiTask,
   BiBuildings,
   BiMapAlt,
+  BiIdCard,
 } from "react-icons/bi";
 
 const menuItems = [
@@ -29,6 +30,7 @@ const menuItems = [
       { to: "/admin/parametros", icon: BiTask, label: "Parametros", roles: ["admin"] },
       { to: "/admin/ris", icon: BiMapAlt, label: "RIS", roles: ["admin"] },
       { to: "/admin/establecimientos", icon: BiBuildings, label: "Establecimientos", roles: ["admin"] },
+      { to: "/admin/digitadores", icon: BiIdCard, label: "Digitadores", roles: ["admin"] },
     ],
   },
 ];

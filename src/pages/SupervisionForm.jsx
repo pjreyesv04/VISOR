@@ -47,6 +47,8 @@ export default function SupervisionForm() {
 
   const [medicoJefeNombre, setMedicoJefeNombre] = useState("");
   const [digitadorNombre, setDigitadorNombre] = useState("");
+  const [digitadorId, setDigitadorId] = useState(null);
+  const [digitadoresDisponibles, setDigitadoresDisponibles] = useState([]);
 
   // Observaciones globales
   const [observaciones, setObservaciones] = useState("");
@@ -64,6 +66,10 @@ export default function SupervisionForm() {
   const [verificacionFuaHc, setVerificacionFuaHc] = useState(
     Array.from({ length: 10 }, () => ({ ...EMPTY_VERIF }))
   );
+
+  // Respuestas por digitador (secciones 6.1, 6.2)
+  // Estructura: { "parametroId__digitadorId": true/false/null }
+  const [respuestasDigitador, setRespuestasDigitador] = useState({});
 
   // Firmas
   const sigSupervisorRef = useRef(null);
@@ -200,7 +206,7 @@ export default function SupervisionForm() {
       const { data: sup, error: supErr } = await supabase
         .from("supervisiones")
         .select(
-          "id,auditor_id,ris_id,establecimiento_id,correlativo,fecha,hora_inicio,hora_fin,medico_jefe,digitador,observaciones,recomendaciones,firma_url,firma_digitador_url,firma_medico_jefe_url"
+          "id,auditor_id,ris_id,establecimiento_id,correlativo,fecha,hora_inicio,hora_fin,medico_jefe,digitador,digitador_id,observaciones,recomendaciones,firma_url,firma_digitador_url,firma_medico_jefe_url"
         )
         .eq("id", supervisionId)
         .single();
@@ -238,6 +244,7 @@ export default function SupervisionForm() {
       setCorrelativo(sup.correlativo ?? null);
       setMedicoJefeNombre(sup.medico_jefe || "");
       setDigitadorNombre(sup.digitador || "");
+      setDigitadorId(sup.digitador_id || null);
       setObservaciones(sup.observaciones || "");
       setRecomendaciones(sup.recomendaciones || "");
 
@@ -267,6 +274,21 @@ export default function SupervisionForm() {
         .eq("id", sup.establecimiento_id)
         .single();
       setEstablecimientoNombre(est?.nombre || "");
+
+      // Digitadores del establecimiento
+      const { data: digData } = await supabase
+        .from("digitadores")
+        .select("id, apellidos_nombres")
+        .eq("establecimiento_id", sup.establecimiento_id)
+        .eq("activo", true)
+        .order("apellidos_nombres");
+      setDigitadoresDisponibles(digData || []);
+
+      // Si hay digitador_id, obtener nombre actualizado
+      if (sup.digitador_id && digData) {
+        const dig = digData.find(d => d.id === sup.digitador_id);
+        if (dig) setDigitadorNombre(dig.apellidos_nombres);
+      }
 
       // Parámetros
       const { data: params, error: pErr } = await supabase
@@ -346,6 +368,20 @@ export default function SupervisionForm() {
             : { ...EMPTY_VERIF };
         });
         setVerificacionFuaHc(verifRows);
+      }
+
+      // Respuestas por digitador (6.1, 6.2)
+      const { data: respDigData } = await supabase
+        .from("respuestas_digitador")
+        .select("parametro_id, digitador_id, valor_bool")
+        .eq("supervision_id", supervisionId);
+
+      if (respDigData && respDigData.length > 0) {
+        const rdMap = {};
+        respDigData.forEach((rd) => {
+          rdMap[`${rd.parametro_id}__${rd.digitador_id}`] = rd.valor_bool;
+        });
+        setRespuestasDigitador(rdMap);
       }
 
       // Evidencias + firmas
@@ -499,6 +535,7 @@ export default function SupervisionForm() {
         .update({
           medico_jefe: medicoJefeNombre || null,
           digitador: digitadorNombre || null,
+          digitador_id: digitadorId || null,
           observaciones: observaciones || null,
           recomendaciones: recomendaciones || null,
           hora_fin: fin.iso,
@@ -584,6 +621,24 @@ export default function SupervisionForm() {
         if (verifErr) throw verifErr;
       }
 
+      // Guardar respuestas por digitador (6.1, 6.2)
+      await supabase.from("respuestas_digitador").delete().eq("supervision_id", supervisionId);
+      const rdRows = Object.entries(respuestasDigitador)
+        .filter(([, val]) => val !== null && val !== undefined)
+        .map(([key, val]) => {
+          const [parametro_id, digitador_id] = key.split("__");
+          return {
+            supervision_id: supervisionId,
+            parametro_id,
+            digitador_id,
+            valor_bool: val,
+          };
+        });
+      if (rdRows.length > 0) {
+        const { error: rdErr } = await supabase.from("respuestas_digitador").insert(rdRows);
+        if (rdErr) throw rdErr;
+      }
+
       // Auditoría
       await registrarAuditoria("update", "Acta de supervisión finalizada y guardada", {
         field: "estado",
@@ -604,6 +659,8 @@ export default function SupervisionForm() {
 
     setMedicoJefeNombre("");
     setDigitadorNombre("");
+    setDigitadorId(null);
+    setRespuestasDigitador({});
     setObservaciones("");
     setRecomendaciones("");
 
@@ -826,6 +883,71 @@ export default function SupervisionForm() {
   );
 
   // =========================
+  // RENDER: Tabla de Digitadores (Secciones 6.1, 6.2)
+  // =========================
+  const setRespDigitador = (parametroId, digitadorId, value) => {
+    setRespuestasDigitador((prev) => ({
+      ...prev,
+      [`${parametroId}__${digitadorId}`]: value,
+    }));
+  };
+
+  const renderTablaDigitadores = (parametroId) => {
+    if (!digitadoresDisponibles || digitadoresDisponibles.length === 0) {
+      return (
+        <div className="mt-2 text-muted" style={{ fontSize: 13 }}>
+          No hay digitadores registrados para este establecimiento.
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2 mb-2">
+        <div className="table-responsive">
+          <table className="table table-bordered table-sm mb-0">
+            <thead className="table-light">
+              <tr>
+                <th>Nombre del Digitador</th>
+                <th style={{ width: 80 }} className="text-center">Sí</th>
+                <th style={{ width: 80 }} className="text-center">No</th>
+              </tr>
+            </thead>
+            <tbody>
+              {digitadoresDisponibles.map((d) => {
+                const key = `${parametroId}__${d.id}`;
+                const val = respuestasDigitador[key] ?? null;
+                return (
+                  <tr key={d.id}>
+                    <td className="align-middle">{d.apellidos_nombres}</td>
+                    <td className="text-center align-middle">
+                      <input
+                        type="radio"
+                        className="form-check-input"
+                        name={`dig_${parametroId}_${d.id}`}
+                        checked={val === true}
+                        onChange={() => setRespDigitador(parametroId, d.id, true)}
+                      />
+                    </td>
+                    <td className="text-center align-middle">
+                      <input
+                        type="radio"
+                        className="form-check-input"
+                        name={`dig_${parametroId}_${d.id}`}
+                        checked={val === false}
+                        onChange={() => setRespDigitador(parametroId, d.id, false)}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // =========================
   // RENDER: Parámetro individual
   // =========================
   const renderParametroSiNo = (p) => {
@@ -861,6 +983,9 @@ export default function SupervisionForm() {
 
     // Mostrar tabla verificación FUA vs HC en sección 7
     const showTablaVerif = p.has_tabla_extra === "verificacion_fua_hc";
+
+    // Mostrar tabla de digitadores (6.1, 6.2)
+    const showTablaDigitadores = p.has_tabla_extra === "tabla_digitadores";
 
     return (
       <div className={`mb-3 ${disabled ? "opacity-50" : ""}`} key={p.id}>
@@ -1031,6 +1156,9 @@ export default function SupervisionForm() {
             {/* Tabla de participantes (1.1) */}
             {showTablaParticipantes && renderTablaParticipantes()}
 
+            {/* Tabla de digitadores (6.1, 6.2) */}
+            {showTablaDigitadores && renderTablaDigitadores(p.id)}
+
             {/* Tabla FUA verificados (6.1) */}
             {showTablaFua && renderTablaFuaVerificados()}
 
@@ -1102,12 +1230,30 @@ export default function SupervisionForm() {
 
           <div className="col-md-6">
             <label className="form-label fw-semibold">Digitador del Establecimiento</label>
-            <input
-              className="form-control"
-              value={digitadorNombre}
-              onChange={(e) => setDigitadorNombre(e.target.value)}
-              placeholder="Apellidos y nombres"
-            />
+            {digitadoresDisponibles.length > 0 ? (
+              <select
+                className="form-select"
+                value={digitadorId || ""}
+                onChange={(e) => {
+                  const selId = e.target.value || null;
+                  setDigitadorId(selId);
+                  const dig = digitadoresDisponibles.find(d => d.id === selId);
+                  setDigitadorNombre(dig?.apellidos_nombres || "");
+                }}
+              >
+                <option value="">Seleccione digitador...</option>
+                {digitadoresDisponibles.map(d => (
+                  <option key={d.id} value={d.id}>{d.apellidos_nombres}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="form-control"
+                value={digitadorNombre}
+                onChange={(e) => setDigitadorNombre(e.target.value)}
+                placeholder="Apellidos y nombres"
+              />
+            )}
           </div>
         </div>
       </div>

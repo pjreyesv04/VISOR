@@ -6,8 +6,12 @@ export default function NuevaSupervision() {
   const nav = useNavigate();
   const [ris, setRis] = useState([]);
   const [eess, setEess] = useState([]);
+  const [digitadores, setDigitadores] = useState([]);
+
   const [risId, setRisId] = useState("");
   const [eessId, setEessId] = useState("");
+  const [digitadorId, setDigitadorId] = useState("");
+
   // Usar fecha local sin conversión de zona horaria
   const getLocalDate = () => {
     const now = new Date();
@@ -36,11 +40,33 @@ export default function NuevaSupervision() {
       });
   }, [risId]);
 
+  // Cargar digitadores al seleccionar establecimiento
+  useEffect(() => {
+    if (!eessId) { setDigitadores([]); setDigitadorId(""); return; }
+    supabase
+      .from("digitadores")
+      .select("id, apellidos_nombres")
+      .eq("establecimiento_id", eessId)
+      .eq("activo", true)
+      .order("apellidos_nombres")
+      .then(({ data, error }) => {
+        if (error) { setErr(error.message); return; }
+        const list = data || [];
+        setDigitadores(list);
+        // Auto-seleccionar si solo hay uno
+        if (list.length === 1) setDigitadorId(list[0].id);
+        else setDigitadorId("");
+      });
+  }, [eessId]);
+
   const crear = async () => {
     setErr("");
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
     if (!user) return setErr("Sesión no válida");
+
+    // Obtener nombre del digitador seleccionado para guardar como texto también
+    const digitadorSeleccionado = digitadores.find(d => d.id === digitadorId);
 
     const { data, error } = await supabase
       .from("supervisiones")
@@ -48,6 +74,8 @@ export default function NuevaSupervision() {
         auditor_id: user.id,
         ris_id: risId,
         establecimiento_id: eessId,
+        digitador_id: digitadorId || null,
+        digitador: digitadorSeleccionado?.apellidos_nombres || null,
         fecha,
         hora_inicio: new Date().toISOString(),
         estado: "borrador"
@@ -83,6 +111,31 @@ export default function NuevaSupervision() {
         <div className="col-md-3">
           <label className="form-label">Fecha</label>
           <input type="date" className="form-control" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+        </div>
+
+        {/* Selector de digitador(es) */}
+        <div className="col-md-12">
+          <label className="form-label">Digitador del Establecimiento</label>
+          <select
+            className="form-select"
+            value={digitadorId}
+            onChange={(e) => setDigitadorId(e.target.value)}
+            disabled={!eessId || digitadores.length === 0}
+          >
+            <option value="">
+              {!eessId
+                ? "Seleccione establecimiento primero..."
+                : digitadores.length === 0
+                  ? "(Sin digitadores registrados)"
+                  : "Seleccione digitador..."}
+            </option>
+            {digitadores.map(d => (
+              <option key={d.id} value={d.id}>{d.apellidos_nombres}</option>
+            ))}
+          </select>
+          {eessId && digitadores.length > 1 && (
+            <small className="text-muted">{digitadores.length} digitador(es) disponibles</small>
+          )}
         </div>
       </div>
 

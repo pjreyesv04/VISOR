@@ -15,6 +15,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import ParameterManagement from "./pages/admin/ParameterManagement";
 import RisManagement from "./pages/admin/RisManagement";
 import EstablishmentManagement from "./pages/admin/EstablishmentManagement";
+import DigitadorManagement from "./pages/admin/DigitadorManagement";
 
 // Reportes
 import ReportDashboard from "./pages/reports/ReportDashboard";
@@ -97,6 +98,14 @@ export default function App() {
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
                   <EstablishmentManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="admin/digitadores"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <DigitadorManagement />
                 </ProtectedRoute>
               }
             />
