@@ -23,7 +23,10 @@ const GRUPOS_OCUPACIONALES = ["Médico", "Técnico", "Licenciado", "Tecnólogo"]
 
 const EMPTY_PARTICIPANTE = { apellidos_nombres: "", dni: "", grupo_ocupacional: "" };
 const EMPTY_FUA = { numero_fua: "", fecha_atencion: "", fecha_digitacion: "", codigo_prestacional: "", cpms: "", observacion: "" };
-const EMPTY_VERIF = { numero_fua: "", numero_hc: "", coincide: null, observacion: "" };
+const EMPTY_VERIF = { numero_fua: "", numero_hc: "", receta: "", boleta: "", profesional: "", gratuidad: null, observacion: "" };
+
+const REACTIVOS_NOMBRES = ["HBA1c (Hemoglobina Glicosilada)", "Microalbuminuria", "Creatinina sérica"];
+const EMPTY_REACTIVO = { nombre_reactivo: "", disponible: null, fecha_abastecimiento: "" };
 
 export default function SupervisionForm() {
   const { id } = useParams();
@@ -65,6 +68,11 @@ export default function SupervisionForm() {
   );
   const [verificacionFuaHc, setVerificacionFuaHc] = useState(
     Array.from({ length: 10 }, () => ({ ...EMPTY_VERIF }))
+  );
+
+  // Reactivos e insumos (2.2)
+  const [reactivosInsumos, setReactivosInsumos] = useState(
+    REACTIVOS_NOMBRES.map((n) => ({ ...EMPTY_REACTIVO, nombre_reactivo: n }))
   );
 
   // Respuestas por digitador (secciones 6.1, 6.2)
@@ -134,6 +142,26 @@ export default function SupervisionForm() {
 
   // Verificar si un parámetro está desactivado por dependencia
   const isDisabledByDependency = (p) => {
+    // --- Dependencias hardcodeadas de 2.1 → 2.2, 2.3, 2.4 ---
+    // Buscar en TODOS los parámetros con código 2.1 (puede haber duplicados en BD)
+    if (["2.2", "2.3", "2.4"].includes(p.codigo)) {
+      const all21 = (parametros || []).filter((x) => x.codigo === "2.1");
+      // Obtener el valor_bool de cualquier 2.1 que tenga respuesta
+      let val21 = null;
+      for (const p21 of all21) {
+        const r21 = respuestas[p21.id];
+        if (r21 && r21.valor_bool !== null && r21.valor_bool !== undefined) {
+          val21 = r21.valor_bool;
+          break;
+        }
+      }
+      // Si 2.1 = No → bloquear 2.2 y 2.3
+      if (["2.2", "2.3"].includes(p.codigo) && val21 === false) return true;
+      // Si 2.1 = Sí → bloquear 2.4
+      if (p.codigo === "2.4" && val21 === true) return true;
+    }
+
+    // --- Dependencias genéricas vía base de datos ---
     if (!p.depende_de_codigo) return false;
     const parent = codigoToParam[p.depende_de_codigo];
     if (!parent) return false;
@@ -306,7 +334,20 @@ export default function SupervisionForm() {
         .select("parametro_id,valor_bool,observacion,valor_fecha,valor_cantidad,valor_cantidad_2,valor_cantidad_3,valor_texto")
         .eq("supervision_id", supervisionId);
 
+      // Inicializar respuestas vacías para TODOS los parámetros
       const map = {};
+      (params || []).forEach((p) => {
+        map[p.id] = {
+          valor_bool: null,
+          observacion: "",
+          valor_fecha: null,
+          valor_cantidad: null,
+          valor_cantidad_2: null,
+          valor_cantidad_3: null,
+          valor_texto: "",
+        };
+      });
+      // Sobreescribir con respuestas guardadas en BD
       (resp || []).forEach((r) => {
         map[r.parametro_id] = {
           valor_bool: r.valor_bool ?? null,
@@ -364,10 +405,26 @@ export default function SupervisionForm() {
         const verifRows = Array.from({ length: 10 }, (_, i) => {
           const existing = verifData.find((f) => f.fila_numero === i + 1);
           return existing
-            ? { id: existing.id, numero_fua: existing.numero_fua || "", numero_hc: existing.numero_hc || "", coincide: existing.coincide, observacion: existing.observacion || "" }
+            ? { id: existing.id, numero_fua: existing.numero_fua || "", numero_hc: existing.numero_hc || "", receta: existing.receta || "", boleta: existing.boleta || "", profesional: existing.profesional || "", gratuidad: existing.gratuidad, observacion: existing.observacion || "" }
             : { ...EMPTY_VERIF };
         });
         setVerificacionFuaHc(verifRows);
+      }
+
+      // Tablas extra: Reactivos e insumos (2.2)
+      const { data: reactData } = await supabase
+        .from("reactivos_insumos")
+        .select("*")
+        .eq("supervision_id", supervisionId);
+
+      if (reactData && reactData.length > 0) {
+        const reactRows = REACTIVOS_NOMBRES.map((nombre) => {
+          const existing = reactData.find((r) => r.nombre_reactivo === nombre);
+          return existing
+            ? { nombre_reactivo: nombre, disponible: existing.disponible, fecha_abastecimiento: existing.fecha_abastecimiento || "" }
+            : { ...EMPTY_REACTIVO, nombre_reactivo: nombre };
+        });
+        setReactivosInsumos(reactRows);
       }
 
       // Respuestas por digitador (6.1, 6.2)
@@ -614,11 +671,29 @@ export default function SupervisionForm() {
             fila_numero: v.fila_numero,
             numero_fua: v.numero_fua,
             numero_hc: v.numero_hc,
-            coincide: v.coincide,
+            receta: v.receta || "",
+            boleta: v.boleta || "",
+            profesional: v.profesional || "",
+            gratuidad: v.gratuidad,
             observacion: v.observacion,
           }))
         );
         if (verifErr) throw verifErr;
+      }
+
+      // Guardar reactivos e insumos (2.2)
+      await supabase.from("reactivos_insumos").delete().eq("supervision_id", supervisionId);
+      const reactRows = reactivosInsumos.filter((r) => r.disponible !== null);
+      if (reactRows.length > 0) {
+        const { error: reactErr } = await supabase.from("reactivos_insumos").insert(
+          reactRows.map((r) => ({
+            supervision_id: supervisionId,
+            nombre_reactivo: r.nombre_reactivo,
+            disponible: r.disponible,
+            fecha_abastecimiento: r.fecha_abastecimiento || null,
+          }))
+        );
+        if (reactErr) throw reactErr;
       }
 
       // Guardar respuestas por digitador (6.1, 6.2)
@@ -673,6 +748,7 @@ export default function SupervisionForm() {
     setParticipantes([{ ...EMPTY_PARTICIPANTE }]);
     setFuaVerificados(Array.from({ length: 10 }, () => ({ ...EMPTY_FUA })));
     setVerificacionFuaHc(Array.from({ length: 10 }, () => ({ ...EMPTY_VERIF })));
+    setReactivosInsumos(REACTIVOS_NOMBRES.map((n) => ({ ...EMPTY_REACTIVO, nombre_reactivo: n })));
 
     sigSupervisorRef.current?.clear();
     sigDigitadorRef.current?.clear();
@@ -844,13 +920,16 @@ export default function SupervisionForm() {
     <div className="mt-3 mb-3">
       <label className="form-label fw-semibold text-primary">Verificación FUA vs Historia Clínica</label>
       <div className="table-responsive">
-        <table className="table table-bordered table-sm">
+        <table className="table table-bordered table-sm" style={{ fontSize: "0.82rem" }}>
           <thead className="table-light">
             <tr>
               <th style={{ width: 40 }}>#</th>
-              <th>N° FUA</th>
               <th>N° Historia Clínica</th>
-              <th style={{ width: 120 }}>¿Coincide?</th>
+              <th>FUA</th>
+              <th>Receta</th>
+              <th>Boleta</th>
+              <th>Profesional</th>
+              <th style={{ width: 130 }}>Gratuidad</th>
               <th>Observación</th>
             </tr>
           </thead>
@@ -859,20 +938,90 @@ export default function SupervisionForm() {
               <tr key={i}>
                 <td className="text-center align-middle">{i + 1}</td>
                 <td>
-                  <input className="form-control form-control-sm" value={v.numero_fua} onChange={(e) => updateVerif(i, "numero_fua", e.target.value)} placeholder="N° FUA" />
-                </td>
-                <td>
                   <input className="form-control form-control-sm" value={v.numero_hc} onChange={(e) => updateVerif(i, "numero_hc", e.target.value)} placeholder="N° HC" />
                 </td>
                 <td>
-                  <select className="form-select form-select-sm" value={v.coincide === null ? "" : v.coincide ? "si" : "no"} onChange={(e) => updateVerif(i, "coincide", e.target.value === "" ? null : e.target.value === "si")}>
+                  <input className="form-control form-control-sm" value={v.numero_fua} onChange={(e) => updateVerif(i, "numero_fua", e.target.value)} placeholder="N° FUA" />
+                </td>
+                <td>
+                  <input className="form-control form-control-sm" value={v.receta || ""} onChange={(e) => updateVerif(i, "receta", e.target.value)} placeholder="Receta" />
+                </td>
+                <td>
+                  <input className="form-control form-control-sm" value={v.boleta || ""} onChange={(e) => updateVerif(i, "boleta", e.target.value)} placeholder="Boleta" />
+                </td>
+                <td>
+                  <input className="form-control form-control-sm" value={v.profesional || ""} onChange={(e) => updateVerif(i, "profesional", e.target.value)} placeholder="Profesional" />
+                </td>
+                <td>
+                  <select className="form-select form-select-sm" value={v.gratuidad === null ? "" : v.gratuidad ? "cumple" : "no_cumple"} onChange={(e) => updateVerif(i, "gratuidad", e.target.value === "" ? null : e.target.value === "cumple")}>
                     <option value="">—</option>
-                    <option value="si">Sí</option>
-                    <option value="no">No</option>
+                    <option value="cumple">Cumple</option>
+                    <option value="no_cumple">No cumple</option>
                   </select>
                 </td>
                 <td>
                   <input className="form-control form-control-sm" value={v.observacion} onChange={(e) => updateVerif(i, "observacion", e.target.value)} placeholder="Obs." />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // =========================
+  // RENDER: Tabla Reactivos e Insumos (Sección 2.2)
+  // =========================
+  const updateReactivo = (index, field, value) => {
+    setReactivosInsumos((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const renderTablaReactivos = () => (
+    <div className="mt-2 mb-2">
+      <div className="table-responsive">
+        <table className="table table-bordered table-sm mb-0">
+          <thead className="table-light">
+            <tr>
+              <th>Reactivo / Insumo</th>
+              <th style={{ width: 60 }} className="text-center">Sí</th>
+              <th style={{ width: 60 }} className="text-center">No</th>
+              <th>Indicar fecha de último abastecimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reactivosInsumos.map((r, i) => (
+              <tr key={i}>
+                <td className="align-middle fw-semibold" style={{ fontSize: "0.85rem" }}>{r.nombre_reactivo}</td>
+                <td className="text-center align-middle">
+                  <input
+                    type="radio"
+                    className="form-check-input"
+                    name={`reactivo_${i}`}
+                    checked={r.disponible === true}
+                    onChange={() => updateReactivo(i, "disponible", true)}
+                  />
+                </td>
+                <td className="text-center align-middle">
+                  <input
+                    type="radio"
+                    className="form-check-input"
+                    name={`reactivo_${i}`}
+                    checked={r.disponible === false}
+                    onChange={() => updateReactivo(i, "disponible", false)}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={r.fecha_abastecimiento || ""}
+                    onChange={(e) => updateReactivo(i, "fecha_abastecimiento", e.target.value || null)}
+                  />
                 </td>
               </tr>
             ))}
@@ -978,6 +1127,9 @@ export default function SupervisionForm() {
     // Mostrar tabla participantes si 1.1 = Sí
     const showTablaParticipantes = p.has_tabla_extra === "participantes" && r.valor_bool === true;
 
+    // Mostrar tabla reactivos (2.2)
+    const showTablaReactivos = p.has_tabla_extra === "tabla_reactivos";
+
     // Mostrar tabla FUA verificados en la sección 6
     const showTablaFua = p.has_tabla_extra === "fua_verificados";
 
@@ -987,45 +1139,53 @@ export default function SupervisionForm() {
     // Mostrar tabla de digitadores (6.1, 6.2)
     const showTablaDigitadores = p.has_tabla_extra === "tabla_digitadores";
 
+    // Para 6.1/6.2, 2.2 (reactivos) y 5.3 (FUA) ocultar radios Si/No globales
+    const ocultarRadiosSiNo = showTablaDigitadores || showTablaReactivos || showTablaFua;
+
     return (
-      <div className={`mb-3 ${disabled ? "opacity-50" : ""}`} key={p.id}>
+      <div className={`mb-3 ${disabled ? "opacity-50" : ""}`} style={disabled ? { pointerEvents: "none" } : {}} key={p.id}>
         <div className="fw-semibold">
           {p.codigo ? `${p.codigo}. ` : ""}
           {p.descripcion}
-          {disabled && <span className="badge bg-secondary ms-2" style={{ fontSize: 10 }}>Desactivado (ver {p.depende_de_codigo})</span>}
+          {disabled && <span className="badge bg-secondary ms-2" style={{ fontSize: 10 }}>Desactivado (ver {p.depende_de_codigo || "2.1"})</span>}
         </div>
 
         {!disabled && (
           <>
-            <div className="d-flex gap-4 mt-2">
-              <label className="form-check">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name={`si_no_${p.id}`}
-                  checked={r.valor_bool === true}
-                  onChange={() => setResp(p.id, { valor_bool: true })}
-                />
-                <span className="form-check-label">Sí</span>
-              </label>
+            {/* Radios Si/No (ocultos para 6.1/6.2 que solo usan tabla digitadores) */}
+            {!ocultarRadiosSiNo && (
+              <div className="d-flex gap-4 mt-2">
+                <label className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name={`si_no_${p.id}`}
+                    checked={r.valor_bool === true}
+                    onChange={() => setResp(p.id, { valor_bool: true })}
+                  />
+                  <span className="form-check-label">Sí</span>
+                </label>
 
-              <label className="form-check">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name={`si_no_${p.id}`}
-                  checked={r.valor_bool === false}
-                  onChange={() => setResp(p.id, { valor_bool: false })}
-                />
-                <span className="form-check-label">No</span>
-              </label>
-            </div>
+                <label className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name={`si_no_${p.id}`}
+                    checked={r.valor_bool === false}
+                    onChange={() => setResp(p.id, { valor_bool: false })}
+                  />
+                  <span className="form-check-label">No</span>
+                </label>
+              </div>
+            )}
 
-            {/* Campo condicional: Fecha */}
+            {/* Campo condicional: Fecha (etiqueta dinámica para 1.1) */}
             {showConditional && p.tipo_campo_condicional === "fecha" && (
               <div className="mt-2">
                 <label className="form-label text-primary fw-semibold">
-                  {p.etiqueta_campo_condicional || "Fecha"}
+                  {p.codigo === "1.1"
+                    ? (r.valor_bool === true ? "Fecha de la capacitación" : "Fecha a realizar la capacitación")
+                    : (p.etiqueta_campo_condicional || "Fecha")}
                 </label>
                 <input
                   type="date"
@@ -1155,6 +1315,9 @@ export default function SupervisionForm() {
 
             {/* Tabla de participantes (1.1) */}
             {showTablaParticipantes && renderTablaParticipantes()}
+
+            {/* Tabla reactivos e insumos (2.2) */}
+            {showTablaReactivos && renderTablaReactivos()}
 
             {/* Tabla de digitadores (6.1, 6.2) */}
             {showTablaDigitadores && renderTablaDigitadores(p.id)}
