@@ -110,7 +110,7 @@ export default function NuevaSupervision() {
 
         <div className="col-md-3">
           <label className="form-label">Fecha</label>
-          <input type="date" className="form-control" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          <input type="date" className="form-control" value={fecha} readOnly disabled style={{ backgroundColor: "#e9ecef" }} />
         </div>
 
         {/* Selector de digitador(es) */}
