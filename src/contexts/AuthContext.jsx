@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 // Configuración
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
-const PROFILE_FETCH_TIMEOUT = 8000; // 8 segundos
+const PROFILE_FETCH_TIMEOUT = 15000; // 15 segundos (más tiempo para proxy)
 const MAX_RETRIES = 3; // Reintentos máximos para fetchProfile
 
 // Sistema de logging mejorado
@@ -27,6 +27,31 @@ export function AuthProvider({ children }) {
   const initialized = useRef(false);
   const inactivityTimerRef = useRef(null);
   const retryCountRef = useRef(0);
+
+  // Guardar perfil en cache local
+  const cacheProfile = (userId, profileData) => {
+    try {
+      localStorage.setItem(`profile_${userId}`, JSON.stringify(profileData));
+      logger.debug("Perfil guardado en cache local");
+    } catch (e) {
+      logger.warn("No se pudo guardar perfil en cache:", e.message);
+    }
+  };
+
+  // Obtener perfil cacheado
+  const getCachedProfile = (userId) => {
+    try {
+      const cached = localStorage.getItem(`profile_${userId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        logger.info("Perfil recuperado de cache local", parsed);
+        return parsed;
+      }
+    } catch (e) {
+      logger.warn("No se pudo leer perfil de cache:", e.message);
+    }
+    return null;
+  };
 
   const fetchProfile = async (userId, retryCount = 0) => {
     try {
@@ -64,24 +89,33 @@ export function AuthProvider({ children }) {
         // Reintentar en caso de errores de red
         if (retryCount < MAX_RETRIES && (error.message?.includes('fetch') || error.message?.includes('network'))) {
           logger.info(`Reintentando obtener perfil... (${retryCount + 1}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Backoff exponencial
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
           return fetchProfile(userId, retryCount + 1);
         }
         
-        // Si falla después de todos los reintentos, retornar perfil por defecto
-        logger.warn("Usando perfil por defecto después de múltiples errores");
+        // Si falla, intentar usar perfil cacheado
+        const cached = getCachedProfile(userId);
+        if (cached) {
+          logger.warn("Usando perfil CACHEADO después de múltiples errores");
+          return cached;
+        }
+        
+        logger.warn("Usando perfil por defecto (sin cache disponible)");
         return { user_id: userId, nombre: "", role: "auditor", activo: true };
       }
       
       if (!data) {
         logger.error("No se recibieron datos del perfil");
+        const cached = getCachedProfile(userId);
+        if (cached) return cached;
         setAuthError("No se pudo cargar el perfil de usuario.");
         return { user_id: userId, nombre: "", role: "auditor", activo: true };
       }
       
       logger.success("Perfil obtenido correctamente", data);
-      setAuthError(null); // Limpiar error si todo está bien
-      retryCountRef.current = 0; // Resetear contador de reintentos
+      cacheProfile(userId, data); // Guardar en cache para futuros fallos
+      setAuthError(null);
+      retryCountRef.current = 0;
       return data;
       
     } catch (e) {
@@ -95,11 +129,18 @@ export function AuthProvider({ children }) {
       // Reintentar en caso de timeout u otros errores
       if (retryCount < MAX_RETRIES) {
         logger.info(`Reintentando después de exception... (${retryCount + 1}/${MAX_RETRIES})`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
         return fetchProfile(userId, retryCount + 1);
       }
       
-      logger.warn("Usando perfil por defecto después de exception");
+      // Usar perfil cacheado como último recurso
+      const cached = getCachedProfile(userId);
+      if (cached) {
+        logger.warn("Usando perfil CACHEADO después de exception");
+        return cached;
+      }
+      
+      logger.warn("Usando perfil por defecto después de exception (sin cache)");
       return { user_id: userId, nombre: "", role: "auditor", activo: true };
     }
   };
@@ -287,6 +328,10 @@ export function AuthProvider({ children }) {
       setSession(null);
       setProfile(null);
       setAuthError(null);
+      // Limpiar cache de perfiles
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('profile_')) localStorage.removeItem(key);
+      });
     }
   };
 
@@ -301,6 +346,7 @@ export function AuthProvider({ children }) {
     isAdmin: profile?.role === "admin",
     isAuditor: profile?.role === "auditor",
     isViewer: profile?.role === "viewer",
+    isSupervisorInformatico: profile?.role === "supervisor_informatico",
     hasRole: (...roles) => roles.includes(profile?.role),
   };
 

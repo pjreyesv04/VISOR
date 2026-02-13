@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../hooks/useAuth";
-import { BiPlusCircle, BiListUl, BiCheckCircle, BiTimeFive, BiUser, BiBuilding, BiPackage } from "react-icons/bi";
+import { BiPlusCircle, BiListUl, BiCheckCircle, BiTimeFive, BiUser, BiBuilding, BiPackage, BiDesktop } from "react-icons/bi";
 
 export default function Dashboard() {
   const nav = useNavigate();
-  const { profile, isAdmin, isViewer, user } = useAuth();
+  const { profile, isAdmin, isViewer, user, role } = useAuth();
+  const isSupervisorIT = role === "supervisor_informatico";
   const [stats, setStats] = useState({ total: 0, completadas: 0, borradores: 0, revisadas: 0 });
+  const [statsIT, setStatsIT] = useState({ total: 0, completadas: 0, borradores: 0, revisadas: 0 });
   const [recientes, setRecientes] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -51,6 +53,20 @@ export default function Dashboard() {
         borradores: borradores || 0,
         revisadas: revisadas || 0,
       });
+
+      // Stats IT
+      if (isAdmin || isSupervisorIT) {
+        const baseQueryIT = (q) => {
+          let query = q.eq("tipo", "informatico");
+          if (isSupervisorIT && user?.id) query = query.eq("auditor_id", user.id);
+          return query;
+        };
+        const { count: totalIT } = await baseQueryIT(supabase.from("supervisiones").select("id", { count: "exact", head: true }));
+        const { count: completadasIT } = await baseQueryIT(supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "completado"));
+        const { count: borradoresIT } = await baseQueryIT(supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "borrador"));
+        const { count: revisadasIT } = await baseQueryIT(supabase.from("supervisiones").select("id", { count: "exact", head: true }).eq("estado", "revisado"));
+        setStatsIT({ total: totalIT || 0, completadas: completadasIT || 0, borradores: borradoresIT || 0, revisadas: revisadasIT || 0 });
+      }
 
       // Ultimas 5 supervisiones
       let recientesQuery = supabase
@@ -115,7 +131,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [isAdmin, user?.id]);
+  }, [isAdmin, isSupervisorIT, user?.id]);
 
   const estadoBadge = (estado) => {
     const map = {
@@ -133,11 +149,18 @@ export default function Dashboard() {
           <h4 className="mb-1">Bienvenido, {profile?.nombre || "Usuario"}</h4>
           <p className="text-muted mb-0">Panel de control del sistema de supervision</p>
         </div>
-        {!isViewer && (
-          <button className="btn btn-primary d-flex align-items-center gap-2" onClick={() => nav("/nueva")}>
-            <BiPlusCircle /> Nueva Supervision
-          </button>
-        )}
+        <div className="d-flex gap-2">
+          {!isViewer && !isSupervisorIT && (
+            <button className="btn btn-primary d-flex align-items-center gap-2" onClick={() => nav("/nueva")}>
+              <BiPlusCircle /> Nueva Supervisión Médica
+            </button>
+          )}
+          {(isAdmin || isSupervisorIT) && (
+            <button className="btn btn-outline-primary d-flex align-items-center gap-2" onClick={() => nav("/nueva-informatica")}>
+              <BiDesktop /> Nueva Supervisión IT
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -198,6 +221,67 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Stats IT */}
+      {(isAdmin || isSupervisorIT) && (
+        <>
+          <h6 className="text-muted mb-3 mt-2">Supervisiones Informáticas</h6>
+          <div className="row g-3 mb-4">
+            <div className="col-sm-6 col-xl-3">
+              <div className="card border-0 shadow-sm">
+                <div className="card-body d-flex align-items-center gap-3">
+                  <div className="rounded-3 p-2" style={{ background: "#e0f2fe" }}>
+                    <BiDesktop size={28} color="#0284c7" />
+                  </div>
+                  <div>
+                    <div className="text-muted" style={{ fontSize: "0.8rem" }}>Total IT</div>
+                    <h4 className="mb-0">{loading ? "..." : statsIT.total}</h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-sm-6 col-xl-3">
+              <div className="card border-0 shadow-sm">
+                <div className="card-body d-flex align-items-center gap-3">
+                  <div className="rounded-3 p-2" style={{ background: "#fef3c7" }}>
+                    <BiTimeFive size={28} color="#d97706" />
+                  </div>
+                  <div>
+                    <div className="text-muted" style={{ fontSize: "0.8rem" }}>Borradores IT</div>
+                    <h4 className="mb-0">{loading ? "..." : statsIT.borradores}</h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-sm-6 col-xl-3">
+              <div className="card border-0 shadow-sm">
+                <div className="card-body d-flex align-items-center gap-3">
+                  <div className="rounded-3 p-2" style={{ background: "#d1fae5" }}>
+                    <BiCheckCircle size={28} color="#059669" />
+                  </div>
+                  <div>
+                    <div className="text-muted" style={{ fontSize: "0.8rem" }}>Completadas IT</div>
+                    <h4 className="mb-0">{loading ? "..." : statsIT.completadas}</h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-sm-6 col-xl-3">
+              <div className="card border-0 shadow-sm">
+                <div className="card-body d-flex align-items-center gap-3">
+                  <div className="rounded-3 p-2" style={{ background: "#dbeafe" }}>
+                    <BiCheckCircle size={28} color="#2563eb" />
+                  </div>
+                  <div>
+                    <div className="text-muted" style={{ fontSize: "0.8rem" }}>Revisadas IT</div>
+                    <h4 className="mb-0">{loading ? "..." : statsIT.revisadas}</h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Supervisiones Recientes */}
       <div className="card border-0 shadow-sm">

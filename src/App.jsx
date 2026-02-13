@@ -17,6 +17,12 @@ import RisManagement from "./pages/admin/RisManagement";
 import EstablishmentManagement from "./pages/admin/EstablishmentManagement";
 import DigitadorManagement from "./pages/admin/DigitadorManagement";
 
+// Supervisión Informática
+import NuevaSupervisionInformatica from "./pages/NuevaSupervisionInformatica";
+import SupervisionInformaticaForm from "./pages/SupervisionInformaticaForm";
+import SupervisionInformaticaList from "./pages/SupervisionInformaticaList";
+import SupervisionInformaticaView from "./pages/SupervisionInformaticaView";
+
 // Reportes
 import ReportDashboard from "./pages/reports/ReportDashboard";
 
@@ -30,7 +36,7 @@ export default function App() {
           {/* Rutas protegidas con Layout */}
           <Route
             element={
-              <ProtectedRoute allowedRoles={["admin", "auditor", "viewer"]}>
+              <ProtectedRoute allowedRoles={["admin", "auditor", "viewer", "supervisor_informatico"]}>
                 <Layout />
               </ProtectedRoute>
             }
@@ -58,6 +64,43 @@ export default function App() {
             />
 
             <Route path="supervision/:id/ver" element={<SupervisionView />} />
+
+            {/* Supervisión Informática */}
+            <Route
+              path="nueva-informatica"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "supervisor_informatico"]}>
+                  <NuevaSupervisionInformatica />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="supervisiones-informatica"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "supervisor_informatico", "viewer"]}>
+                  <SupervisionInformaticaList />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="supervision-informatica/:id"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "supervisor_informatico"]}>
+                  <SupervisionInformaticaForm />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="supervision-informatica/:id/ver"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "supervisor_informatico", "viewer"]}>
+                  <SupervisionInformaticaView />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="reportes"

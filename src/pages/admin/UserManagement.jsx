@@ -186,7 +186,7 @@ export default function UserManagement() {
   };
 
   const roleBadge = (role) => {
-    const map = { admin: "bg-warning text-dark", auditor: "bg-primary", viewer: "bg-success" };
+    const map = { admin: "bg-warning text-dark", auditor: "bg-primary", viewer: "bg-success", supervisor_informatico: "bg-info text-dark" };
     return map[role] || "bg-secondary";
   };
 
@@ -313,6 +313,7 @@ export default function UserManagement() {
                       <option value="admin">Admin</option>
                       <option value="auditor">Auditor</option>
                       <option value="viewer">Viewer</option>
+                      <option value="supervisor_informatico">Supervisor Informático</option>
                     </select>
                   </div>
                 </div>
