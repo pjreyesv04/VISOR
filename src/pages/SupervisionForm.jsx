@@ -1140,8 +1140,9 @@ export default function SupervisionForm() {
     // Mostrar tabla de digitadores (6.1, 6.2)
     const showTablaDigitadores = p.has_tabla_extra === "tabla_digitadores";
 
-    // Para 6.1/6.2, 2.2 (reactivos) y 5.3 (FUA) ocultar radios Si/No globales
-    const ocultarRadiosSiNo = showTablaDigitadores || showTablaReactivos || showTablaFua;
+    // Para 6.1/6.2, 2.2 (reactivos), 5.3 (FUA) y campos de solo cantidad (siempre) ocultar radios Si/No globales
+    const ocultarRadiosSiNo = showTablaDigitadores || showTablaReactivos || showTablaFua
+      || (p.condicion_campo === "siempre" && ["cantidad", "cantidad_multiple"].includes(p.tipo_campo_condicional));
 
     return (
       <div className={`mb-3 ${disabled ? "opacity-50" : ""}`} style={disabled ? { pointerEvents: "none" } : {}} key={p.id}>
@@ -1280,39 +1281,45 @@ export default function SupervisionForm() {
             )}
 
             {/* Campo condicional: Texto persona (nombre + grupo ocupacional) */}
-            {showConditional && p.tipo_campo_condicional === "texto_persona" && (
-              <div className="mt-2">
-                <div className="row g-2">
-                  <div className="col-md-6">
-                    <label className="form-label text-primary fw-semibold" style={{ fontSize: 13 }}>
-                      {textoPersonaLabels[0] || "Nombres y Apellidos"}
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={r.valor_texto || ""}
-                      onChange={(e) => setResp(p.id, { valor_texto: e.target.value })}
-                      placeholder="Apellidos y nombres"
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label text-primary fw-semibold" style={{ fontSize: 13 }}>
-                      {textoPersonaLabels[1] || "Grupo Ocupacional"}
-                    </label>
-                    <select
-                      className="form-select form-select-sm"
-                      value={r.valor_fecha || ""}
-                      onChange={(e) => setResp(p.id, { valor_fecha: e.target.value || null })}
-                    >
-                      <option value="">Seleccionar...</option>
-                      {GRUPOS_OCUPACIONALES.map((g) => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
+            {showConditional && p.tipo_campo_condicional === "texto_persona" && (() => {
+              // Almacenar nombre y grupo en valor_texto separados por "|||"
+              const partes = (r.valor_texto || "").split("|||");
+              const textoNombre = partes[0] || "";
+              const textoGrupo = partes[1] || "";
+              return (
+                <div className="mt-2">
+                  <div className="row g-2">
+                    <div className="col-md-6">
+                      <label className="form-label text-primary fw-semibold" style={{ fontSize: 13 }}>
+                        {textoPersonaLabels[0] || "Nombres y Apellidos"}
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={textoNombre}
+                        onChange={(e) => setResp(p.id, { valor_texto: e.target.value + "|||" + textoGrupo, valor_fecha: null })}
+                        placeholder="Apellidos y nombres"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label text-primary fw-semibold" style={{ fontSize: 13 }}>
+                        {textoPersonaLabels[1] || "Grupo Ocupacional"}
+                      </label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={textoGrupo}
+                        onChange={(e) => setResp(p.id, { valor_texto: textoNombre + "|||" + (e.target.value || ""), valor_fecha: null })}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {GRUPOS_OCUPACIONALES.map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Tabla de participantes (1.1) */}
             {showTablaParticipantes && renderTablaParticipantes()}
