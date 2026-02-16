@@ -92,6 +92,11 @@ export default function SupervisionForm() {
   const [firmaDigitadorUrl, setFirmaDigitadorUrl] = useState(null);
   const [firmaMedicoJefeUrl, setFirmaMedicoJefeUrl] = useState(null);
 
+  // DNI de firmantes
+  const [dniSupervisor, setDniSupervisor] = useState("");
+  const [dniDigitador, setDniDigitador] = useState("");
+  const [dniMedicoJefe, setDniMedicoJefe] = useState("");
+
   // Evidencias
   const [evidencias, setEvidencias] = useState([]);
   const [subiendoEvidencias, setSubiendoEvidencias] = useState(false);
@@ -234,7 +239,7 @@ export default function SupervisionForm() {
       const { data: sup, error: supErr } = await supabase
         .from("supervisiones")
         .select(
-          "id,auditor_id,ris_id,establecimiento_id,correlativo,fecha,hora_inicio,hora_fin,medico_jefe,digitador,digitador_id,observaciones,recomendaciones,firma_url,firma_digitador_url,firma_medico_jefe_url"
+          "id,auditor_id,ris_id,establecimiento_id,correlativo,fecha,hora_inicio,hora_fin,medico_jefe,digitador,digitador_id,observaciones,recomendaciones,firma_url,firma_digitador_url,firma_medico_jefe_url,dni_supervisor,dni_digitador,dni_medico_jefe"
         )
         .eq("id", supervisionId)
         .single();
@@ -279,6 +284,11 @@ export default function SupervisionForm() {
       setFirmaSupervisorPath(sup.firma_url || null);
       setFirmaDigitadorPath(sup.firma_digitador_url || null);
       setFirmaMedicoJefePath(sup.firma_medico_jefe_url || null);
+
+      // DNI de firmantes
+      setDniSupervisor(sup.dni_supervisor || "");
+      setDniDigitador(sup.dni_digitador || "");
+      setDniMedicoJefe(sup.dni_medico_jefe || "");
 
       // Correlativo
       if (sup.correlativo == null) {
@@ -546,7 +556,8 @@ export default function SupervisionForm() {
   // =========================
   const registrarAuditoria = async (action, description, cambios) => {
     try {
-      if (!user?.id) {
+      const userId = user?.id || sessionUser?.id;
+      if (!userId) {
         console.warn("No se puede registrar auditoría: usuario no disponible");
         return;
       }
@@ -555,7 +566,7 @@ export default function SupervisionForm() {
 
       const { error } = await supabase.from("audit_logs").insert({
         supervision_id: supervisionId,
-        user_id: user.id,
+        user_id: userId,
         action,
         description:
           description ||
@@ -598,6 +609,9 @@ export default function SupervisionForm() {
           recomendaciones: recomendaciones || null,
           hora_fin: fin.iso,
           estado: "completado",
+          dni_supervisor: dniSupervisor || null,
+          dni_digitador: dniDigitador || null,
+          dni_medico_jefe: dniMedicoJefe || null,
         })
         .eq("id", supervisionId);
 
@@ -1140,8 +1154,8 @@ export default function SupervisionForm() {
     // Mostrar tabla de digitadores (6.1, 6.2)
     const showTablaDigitadores = p.has_tabla_extra === "tabla_digitadores";
 
-    // Para 6.1/6.2, 2.2 (reactivos), 5.3 (FUA) y campos de solo cantidad (siempre) ocultar radios Si/No globales
-    const ocultarRadiosSiNo = showTablaDigitadores || showTablaReactivos || showTablaFua
+    // Para 6.1/6.2, 2.2 (reactivos), 5.3 (FUA), 7.1 (verif FUA vs HC) y campos de solo cantidad (siempre) ocultar radios Si/No globales
+    const ocultarRadiosSiNo = showTablaDigitadores || showTablaReactivos || showTablaFua || showTablaVerif
       || (p.condicion_campo === "siempre" && ["cantidad", "cantidad_multiple"].includes(p.tipo_campo_condicional));
 
     return (
@@ -1567,6 +1581,18 @@ export default function SupervisionForm() {
                 </button>
               ) : null}
             </div>
+            <div className="mt-2">
+              <label className="form-label fw-semibold" style={{ fontSize: 13 }}>DNI</label>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ maxWidth: 120 }}
+                value={dniMedicoJefe}
+                onChange={(e) => setDniMedicoJefe(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="00000000"
+                maxLength={8}
+              />
+            </div>
           </div>
 
           {/* Digitador */}
@@ -1600,6 +1626,18 @@ export default function SupervisionForm() {
                 </button>
               ) : null}
             </div>
+            <div className="mt-2">
+              <label className="form-label fw-semibold" style={{ fontSize: 13 }}>DNI</label>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ maxWidth: 120 }}
+                value={dniDigitador}
+                onChange={(e) => setDniDigitador(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="00000000"
+                maxLength={8}
+              />
+            </div>
           </div>
 
           {/* Auditor/Supervisor */}
@@ -1632,6 +1670,18 @@ export default function SupervisionForm() {
                   Re-firmar
                 </button>
               ) : null}
+            </div>
+            <div className="mt-2">
+              <label className="form-label fw-semibold" style={{ fontSize: 13 }}>DNI</label>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ maxWidth: 120 }}
+                value={dniSupervisor}
+                onChange={(e) => setDniSupervisor(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="00000000"
+                maxLength={8}
+              />
             </div>
           </div>
         </div>
