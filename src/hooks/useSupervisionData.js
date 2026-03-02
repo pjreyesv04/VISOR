@@ -59,7 +59,7 @@ export function useSupervisionData(supervisionId) {
       const { data: params } = await supabase
         .from("parametros")
         .select("id, seccion, codigo, descripcion, requiere_observacion, orden, activo, tipo_campo_condicional, condicion_campo, etiqueta_campo_condicional")
-        .eq("tipo_supervision", "medico_auditor")
+        .eq("tipo_supervision", "general")
         .order("seccion", { ascending: true })
         .order("orden", { ascending: true });
 
